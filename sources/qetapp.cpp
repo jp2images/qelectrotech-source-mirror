@@ -2293,6 +2293,15 @@ void QETApp::initStyle()
 	//Apply or not the system style
 	QSettings settings;
 	useSystemPalette(settings.value("usesystemcolors", true).toBool());
+
+	// QET's toolbar/menu icons (sources/qeticons.cpp) retint themselves to
+	// the current palette's foreground color at paint time (see
+	// ThemedIconEngine); give them their initial tint now that the
+	// palette above is in place. eventFilter() repeats this on every
+	// later QEvent::ApplicationPaletteChange (e.g. the OS Light/Dark
+	// switch, including Qt's own delayed re-sync a few seconds after
+	// startup on some platforms).
+	QET::Icons::retintForPalette(qApp->palette());
 }
 
 /**
@@ -2727,26 +2736,37 @@ void QETApp::fetchWindowStats(
 	every_editor_reduced = every_element_reduced && every_diagram_reduced;
 }
 
-#ifdef Q_OS_DARWIN
 /**
-	Gere les evenements, en particulier l'evenement FileOpen sous MacOs.
+	Gere les evenements, en particulier l'evenement FileOpen sous MacOs et
+	le retintage des icones lors d'un changement de palette (voir
+	initStyle() et QET::Icons::retintForPalette()).
 	Installe comme event filter sur QApplication dans main(), une fois
 	QETApp construite (voir main.cpp).
 	@param object Objet cible de l'evenement
 	@param e Evenement a gerer
 */
 bool QETApp::eventFilter(QObject *object, QEvent *e) {
+#ifdef Q_OS_DARWIN
 	// gere l'ouverture de fichiers (sous MacOs)
 	if (e -> type() == QEvent::FileOpen) {
 	// nom du fichier a ouvrir
 	QString filename = static_cast<QFileOpenEvent *>(e) -> file();
 	openFiles(QETArguments(QStringList() << filename));
 	return(true);
-	} else {
-	return QObject::eventFilter(object, e);
 	}
-}
 #endif
+	if (e->type() == QEvent::ApplicationPaletteChange) {
+		// The OS (or Qt itself -- observed: an async re-sync a few
+		// seconds after startup with Fusion on macOS) changed the
+		// palette, e.g. a Light/Dark switch. Retint every monochrome
+		// toolbar/menu icon to match; ThemedIconEngine ignores this for
+		// icons it classified as deliberately colored (flags, wire/cable
+		// color swatches, semantic red/green/etc. icons).
+		QET::Icons::retintForPalette(qApp->palette());
+		return false;
+	}
+	return QObject::eventFilter(object, e);
+}
 
 /**
 	@brief QETApp::printHelp

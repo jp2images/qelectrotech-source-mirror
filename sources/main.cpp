@@ -175,6 +175,10 @@ QGuiApplication::setHighDpiScaleFactorRoundingPolicy(QetSettings::hdpiScaleFacto
 
 	QETApp qetapp;
 	QETApp::instance()->installEventFilter(&qetapp);
+	// Also on the QApplication itself, cross-platform: QETApp::eventFilter()
+	// reasserts QET's fixed light palette (see initStyle()) whenever Qt
+	// changes it out from under the app, not just on macOS.
+	app.installEventFilter(&qetapp);
 #ifdef Q_OS_MACOS
 	//Handle the opening of QET when user double click on a .qet .elmt .tbt file
 	//or drop these same files to the QET icon of the dock.
@@ -182,7 +186,6 @@ QGuiApplication::setHighDpiScaleFactorRoundingPolicy(QetSettings::hdpiScaleFacto
 	//see above) for the real filter, then drain anything it buffered
 	//during the cold-launch window before QETApp existed.
 	app.removeEventFilter(&early_catcher);
-	app.installEventFilter(&qetapp);
 	if (!early_catcher.bufferedFiles.isEmpty())
 		qetapp.openFiles(QETArguments(early_catcher.bufferedFiles));
 #endif

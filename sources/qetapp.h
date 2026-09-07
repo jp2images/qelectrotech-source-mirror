@@ -178,11 +178,9 @@ class QETApp : public QObject
 		static QTextOrientationSpinBoxWidget *createTextOrientationSpinBoxWidget();
 		static TitleBlockTemplate *defaultTitleBlockTemplate();
 	
-#ifdef Q_OS_DARWIN
 	public:
 		bool eventFilter(QObject *object, QEvent *) override;
-#endif
-	
+
 		// attributes
 	private:
 		static QETApp *m_qetapp;
@@ -220,7 +218,7 @@ class QETApp : public QObject
 		 */
 		bool non_interactive_execution_;
 		QPalette initial_palette_;   ///< System color palette
-		
+
 		static TitleBlockTemplatesFilesCollection *m_common_tbt_collection;
 		static TitleBlockTemplatesFilesCollection *m_company_tbt_collection;
 		static TitleBlockTemplatesFilesCollection *m_custom_tbt_collection;

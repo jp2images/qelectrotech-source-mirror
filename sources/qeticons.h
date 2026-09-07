@@ -18,6 +18,10 @@
 #ifndef QET_ICONS_H
 #define QET_ICONS_H
 #include <QIcon>
+#include <QPalette>
+#include <QPixmap>
+#include <QStringList>
+#include <QVector>
 /**
 	This namespace is meant to declare icons used within the QElectroTech
 	application.
@@ -25,7 +29,52 @@
 namespace QET {
 	namespace Icons {
 		void initIcons();
-		
+
+		/**
+			Build an icon from one or more source files (typically the same
+			glyph at several sizes, e.g. 16x16 and 22x22) that repaints
+			itself to match the current QPalette. Most of QET's toolbar/menu
+			icons are plain dark ink on a transparent background with no
+			dark-mode variant of their own; this recolors that ink to
+			QPalette::WindowText at paint time, live, so the same asset
+			reads correctly on both a light and a dark toolbar.
+
+			Icons that are deliberately colored rather than plain ink --
+			country flags (ico/24x16/), wire/cable color-picker swatches
+			(ico/22x22/color/), and any other icon where a meaningful
+			fraction of the drawing is a saturated color (e.g. the red
+			"delete"/"close" icons, the green "refresh" icon, IEC
+			phase/neutral/ground color coding) -- are detected and left
+			untouched, exactly as authored, regardless of theme.
+			\~ @param paths one or more ":/ico/..." resource paths for the
+			same icon at different sizes
+			\~ @return a themed QIcon
+		*/
+		QIcon makeThemedIcon(const QStringList &paths);
+
+		/**
+			Same as makeThemedIcon(const QStringList &), for the few icons
+			(e.g. undo/redo, whose arrow direction is mirrored for
+			right-to-left languages) that need a pre-transformed pixmap
+			rather than a plain resource file.
+			\~ @param pixmaps one or more pixmaps for the same icon at
+			different sizes
+			\~ @return a themed QIcon
+		*/
+		QIcon makeThemedIconFromPixmaps(const QVector<QPixmap> &pixmaps);
+
+		/**
+			Force every icon built by makeThemedIcon() to repaint with its
+			ink recolored for the given (new) palette. Called once after
+			initStyle() sets up the initial palette, and again from
+			QETApp::eventFilter() on every later QEvent::ApplicationPaletteChange
+			(a Light/Dark switch, including Qt's own delayed re-sync on
+			some Qt/platform combinations).
+			\~ @param palette the palette icons should now match
+		*/
+		void retintForPalette(const QPalette &palette);
+
+
 		// using the extern keyword enables access to static objects from outside the
 		// namespace
 		extern QIcon Add;
