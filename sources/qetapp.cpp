@@ -2283,12 +2283,60 @@ void QETApp::initFonts()
 }
 
 /**
+	@brief QETApp::wellContrastedDarkPalette
+	A hand-tuned dark QPalette with deliberate separation between
+	QPalette::Window (panel/dock backgrounds), QPalette::Button
+	(QComboBox, buttons) and QPalette::Base (QLineEdit/QSpinBox fields),
+	so form controls stay visually distinct from the panels they sit in.
+	\~ @return a dark palette with good internal contrast
+*/
+QPalette QETApp::wellContrastedDarkPalette()
+{
+	QPalette p;
+	p.setColor(QPalette::Window, QColor(53, 53, 53));
+	p.setColor(QPalette::WindowText, QColor(220, 220, 220));
+	p.setColor(QPalette::Base, QColor(30, 30, 30));
+	p.setColor(QPalette::AlternateBase, QColor(45, 45, 45));
+	p.setColor(QPalette::Text, QColor(220, 220, 220));
+	p.setColor(QPalette::Button, QColor(66, 66, 66));
+	p.setColor(QPalette::ButtonText, QColor(220, 220, 220));
+	p.setColor(QPalette::BrightText, QColor(255, 90, 90));
+	p.setColor(QPalette::Highlight, QColor(42, 130, 218));
+	p.setColor(QPalette::HighlightedText, Qt::white);
+	p.setColor(QPalette::ToolTipBase, QColor(66, 66, 66));
+	p.setColor(QPalette::ToolTipText, QColor(220, 220, 220));
+	p.setColor(QPalette::Link, QColor(100, 170, 255));
+	p.setColor(QPalette::PlaceholderText, QColor(150, 150, 150));
+	p.setColor(QPalette::Light, QColor(90, 90, 90));
+	p.setColor(QPalette::Midlight, QColor(75, 75, 75));
+	p.setColor(QPalette::Dark, QColor(20, 20, 20));
+	p.setColor(QPalette::Mid, QColor(35, 35, 35));
+	p.setColor(QPalette::Shadow, QColor(10, 10, 10));
+	p.setColor(QPalette::Disabled, QPalette::WindowText, QColor(120, 120, 120));
+	p.setColor(QPalette::Disabled, QPalette::Text, QColor(120, 120, 120));
+	p.setColor(QPalette::Disabled, QPalette::ButtonText, QColor(120, 120, 120));
+	p.setColor(QPalette::Disabled, QPalette::Base, QColor(45, 45, 45));
+	p.setColor(QPalette::Disabled, QPalette::Highlight, QColor(80, 80, 80));
+	return p;
+}
+
+/**
 	@brief QETApp::initStyle
 	Setup the gui style
 */
 void QETApp::initStyle()
 {
 	initial_palette_ = qApp->palette();
+	// Qt's own OS-derived dark palette (Fusion, Qt >= 6.5) is low-contrast:
+	// QComboBox/QSpinBox fields render in QPalette::Button/Base, which it
+	// sets almost equal to QPalette::Window, so form controls become
+	// indistinguishable from the panel behind them. Swap in a hand-tuned
+	// dark palette with real separation between those roles instead --
+	// matching the "Fusion + explicit dark QPalette" recipe documented as
+	// the reliable one in bugtracker discussion #553, rather than trusting
+	// Qt's auto-derived one.
+	if (initial_palette_.color(QPalette::Window).lightness() < 128)
+		initial_palette_ = wellContrastedDarkPalette();
 
 	//Apply or not the system style
 	QSettings settings;

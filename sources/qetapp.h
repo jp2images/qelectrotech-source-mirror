@@ -282,6 +282,7 @@ class QETApp : public QObject
 		void initLanguage();
 		void initFonts();
 		void initStyle();
+		static QPalette wellContrastedDarkPalette();
 		void initConfiguration();
 		void initSystemTray();
 		void buildSystemTrayMenu();
