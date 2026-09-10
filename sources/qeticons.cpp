@@ -456,11 +456,35 @@ class ThemedIconEngine : public QIconEngine
 			return QStringLiteral("qet-themed-icon");
 		}
 
+		/**
+			The size this engine will actually draw at for a given
+			requested size. QIconEngine's default implementation returns
+			the requested size unchanged, which would claim these icons
+			can fill any box asked of them: QTreeWidget::iconSize() is
+			50x50 in GenericPanel, so the 16x16 folio/folder art would be
+			stretched to 50x50 and the rows grown to match. Report the
+			source art's own size instead, shrunk to fit but never grown,
+			which is what QPixmapIconEngine (the engine a plain
+			QIcon(":/ico/...") uses) does.
+		*/
+		QSize actualSize(const QSize &size, QIcon::Mode, QIcon::State) override
+		{
+			return fittedSize(bestOriginal(size), size);
+		}
+
 		QPixmap pixmap(const QSize &size, QIcon::Mode mode, QIcon::State) override
 		{
 			QPixmap src = bestOriginal(size);
 			if (src.isNull())
 				return src;
+			// Only ever scale down: a 22x22 asset asked for at 16x16 (a
+			// menu, say) must come back at 16x16, not at its own size.
+			const QSize target = fittedSize(src, size);
+			// IgnoreAspectRatio: fittedSize() has already applied the
+			// aspect ratio, and applying it twice loses a pixel on
+			// non-square art (the 24x16 flags).
+			if (src.size() != target)
+				src = src.scaled(target, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
 			QPixmap result = m_isMask ? tinted(src, currentTint()) : src;
 			if (mode == QIcon::Disabled)
 			{
@@ -472,7 +496,16 @@ class ThemedIconEngine : public QIconEngine
 
 		void paint(QPainter *painter, const QRect &rect, QIcon::Mode mode, QIcon::State state) override
 		{
-			painter->drawPixmap(rect, pixmap(rect.size(), mode, state));
+			const QPixmap pm = pixmap(rect.size(), mode, state);
+			if (pm.isNull())
+				return;
+			// Centre the art in the rect at its own size rather than
+			// stretching it across the whole rect, for callers that hand
+			// us a box bigger than the art (again, QPixmapIconEngine's
+			// behaviour via QIcon::paint()).
+			QRect target(QPoint(0, 0), logicalSize(pm));
+			target.moveCenter(rect.center());
+			painter->drawPixmap(target, pm);
 		}
 
 		QList<QSize> availableSizes(QIcon::Mode = QIcon::Normal, QIcon::State = QIcon::Off) override
@@ -519,6 +552,33 @@ class ThemedIconEngine : public QIconEngine
 						best = &p;
 			}
 			return *best;
+		}
+
+		/**
+			\a pixmap's size in logical (device-independent) pixels.
+			Written out rather than using QPixmap::deviceIndependentSize(),
+			which needs Qt >= 6.2 while QET still builds against Qt 5.
+		*/
+		static QSize logicalSize(const QPixmap &pixmap)
+		{
+			const qreal dpr = pixmap.devicePixelRatio();
+			if (qFuzzyCompare(dpr, qreal(1)))
+				return pixmap.size();
+			return QSize(qRound(pixmap.width() / dpr), qRound(pixmap.height() / dpr));
+		}
+
+		/**
+			\a source's own size, shrunk to fit inside \a bounds if it is
+			larger, never enlarged.
+		*/
+		static QSize fittedSize(const QPixmap &source, const QSize &bounds)
+		{
+			if (source.isNull())
+				return QSize();
+			QSize s = logicalSize(source);
+			if (bounds.isValid() && (s.width() > bounds.width() || s.height() > bounds.height()))
+				s.scale(bounds, Qt::KeepAspectRatio);
+			return s;
 		}
 
 		static QColor currentTint()
