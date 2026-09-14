@@ -152,6 +152,7 @@ if(WIN32)
         ${QET_SRC_FILES}
         ${QM_FILES}
         ${QET_DIR}/qelectrotech.qrc
+        ${QET_DIR}/ico/icon-themes.qrc
     )
 else()
     add_executable(
@@ -160,6 +161,7 @@ else()
         ${QET_SRC_FILES}
         ${QM_FILES}
         ${QET_DIR}/qelectrotech.qrc
+        ${QET_DIR}/ico/icon-themes.qrc
     )
 endif()
 
