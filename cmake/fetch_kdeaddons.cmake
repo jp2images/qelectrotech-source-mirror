@@ -50,22 +50,38 @@ if(BUILD_WITH_KF)
       set(BUILD_QCH OFF)
       set(BUILD_SHARED_LIBS OFF)
 
+      # KF 6.28 uses C++20 (std::ranges in kcoreaddons). ECM's compiler
+      # settings would select C++20 themselves, but only when
+      # CMAKE_CXX_STANDARD is still unset, and QET sets 17 above. Set 20
+      # here so it reaches only the fetched frameworks: this function's
+      # scope is what their subdirectories inherit.
+      set(CMAKE_CXX_STANDARD 20)
+      set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
       FetchContent_Declare(
         ecm
         GIT_REPOSITORY https://invent.kde.org/frameworks/extra-cmake-modules.git
         GIT_TAG        ${KF_GIT_TAG})
       FetchContent_MakeAvailable(ecm)
 
+      # Since KF 6.28 each framework includes ECMGenerateQDoc, which creates
+      # global doc targets without a guard, so the second framework in one
+      # tree fails to configure. The patch wraps that include; see
+      # cmake/kf_guard_qdoc.cmake.
+      set(guard_qdoc ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_LIST_DIR}/kf_guard_qdoc.cmake)
+
       FetchContent_Declare(
         kcoreaddons
         GIT_REPOSITORY https://invent.kde.org/frameworks/kcoreaddons.git
-        GIT_TAG        ${KF_GIT_TAG})
+        GIT_TAG        ${KF_GIT_TAG}
+        PATCH_COMMAND  ${guard_qdoc})
       FetchContent_MakeAvailable(kcoreaddons)
 
       FetchContent_Declare(
         kwidgetsaddons
         GIT_REPOSITORY https://invent.kde.org/frameworks/kwidgetsaddons.git
-        GIT_TAG        ${KF_GIT_TAG})
+        GIT_TAG        ${KF_GIT_TAG}
+        PATCH_COMMAND  ${guard_qdoc})
       FetchContent_MakeAvailable(kwidgetsaddons)
     endfunction()
     qet_make_kf_available()
