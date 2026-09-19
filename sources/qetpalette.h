@@ -18,7 +18,9 @@
 #ifndef QET_PALETTE_H
 #define QET_PALETTE_H
 
+#include <QImage>
 #include <QPalette>
+#include <QPixmap>
 
 class QStyle;
 
@@ -99,6 +101,29 @@ namespace QET {
 			QStyleSheetStyle resolve it again. Call after setPalette().
 		*/
 		void refreshStyleSheets();
+
+		/**
+			True when fewer than a fifth of the visible pixels are
+			saturated: black or gray line art, which is what element
+			previews and most of QET's own icons are.
+		*/
+		bool isLineArt(const QImage &image);
+
+		/**
+			The image with its lightness inverted and hue, saturation and
+			alpha kept: the darkest ink becomes light gray (220), white
+			becomes black. The rule misc/make_icon_themes.py applies when
+			it builds the dark icon theme.
+		*/
+		QImage invertedLightness(const QImage &image);
+
+		/**
+			A picture drawn for a white sheet, made to read on palette:
+			returned as is on a light palette, and with its lightness
+			inverted on a dark one when it is line art. Colored art is
+			left alone either way.
+		*/
+		QPixmap forPalette(const QPixmap &pixmap, const QPalette &palette);
 	}
 }
 

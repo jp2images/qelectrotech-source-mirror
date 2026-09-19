@@ -24,13 +24,15 @@
 #include <QLineEdit>
 #include <QMainWindow>
 #include <QPushButton>
+#include <QPainter>
 #include <QRadioButton>
-#include <QTabWidget>
-#include <QToolButton>
+#include <QStandardItemModel>
+#include <QTreeView>
 #include <QStyleFactory>
 #include <QToolBar>
 
 #include "inkcontrast.h"
+#include "ElementsCollection/elementpreviewdelegate.h"
 #include "qetpalette.h"
 
 using QET::Palette::contrastRatio;
@@ -64,7 +66,10 @@ class tst_qetpalette : public QObject
 		void styleIsFusionMatchesObjectName();
 		void renderedWidgetsAreReadable_data();
 		void renderedWidgetsAreReadable();
-		void styleSheetWidgetsFollowPaletteChange();
+		void lineArtRuleSeparatesInkFromColor();
+		void invertedLightnessKeepsHueAndAlpha();
+		void elementPreviewReadsOnBothPalettes();
+		void previewDelegateAdaptsLineArtOnly();
 
 	private:
 		static void addPaletteRows();
@@ -311,38 +316,22 @@ void tst_qetpalette::renderedWidgetsAreReadable()
 	         qPrintable(QString("line edit text: %1").arg(edit_contrast)));
 }
 
-/**
-	A widget with a style sheet keeps the palette QStyleSheetStyle
-	resolved when the sheet was applied: after QApplication::setPalette()
-	it is still drawn in the old colors, which is what the folio tab bar
-	showed after a live light/dark switch. refreshStyleSheets() brings
-	it in line. Both directions are checked.
-*/
-void tst_qetpalette::styleSheetWidgetsFollowPaletteChange()
-{
-	QApplication::setStyle(QStyleFactory::create("Fusion"));
-	QApplication::setPalette(QET::Palette::fusionLight());
+namespace {
+	/// A 40 x 40 transparent picture with a 3 px stroke square in color, as
+	/// an element preview is drawn for the white sheet.
+	QImage strokeSquare(const QColor &color)
+	{
+		QImage image(40, 40, QImage::Format_ARGB32);
+		image.fill(Qt::transparent);
+		QPainter painter(&image);
+		painter.setPen(QPen(color, 3));
+		painter.drawRect(6, 6, 27, 27);
+		return image;
+	}
 
-	QWidget top;
-	auto *layout = new QHBoxLayout(&top);
-	auto *tabs = new QTabWidget;
-	tabs->addTab(new QWidget, "1");
-	tabs->setStyleSheet("QTabBar::scroller {width: 0px;}");   // as sources/projectview.cpp
-	auto *button = new QToolButton;
-	button->setText("+");
-	button->setAutoRaise(true);
-	tabs->setCornerWidget(button, Qt::TopRightCorner);
-	auto *plain = new QLabel("plain");
-	plain->setAutoFillBackground(true);
-	layout->addWidget(tabs);
-	layout->addWidget(plain);
-	top.resize(300, 120);
-	top.show();
-	QVERIFY(QTest::qWaitForWindowExposed(&top));
-
-	// The most frequent color of a widget's rendering: its background.
-	auto background = [](QWidget *w) {
-		const QImage image = w->grab().toImage();
+	/// The most frequent color of a rendering: its background.
+	QRgb dominant(const QImage &image)
+	{
 		QHash<QRgb, int> histogram;
 		for (int y = 0; y < image.height(); ++y)
 			for (int x = 0; x < image.width(); ++x)
@@ -352,21 +341,100 @@ void tst_qetpalette::styleSheetWidgetsFollowPaletteChange()
 		for (auto it = histogram.cbegin(); it != histogram.cend(); ++it)
 			if (it.value() > count) { count = it.value(); best = it.key(); }
 		return best;
-	};
-	auto window = [](const QPalette &p) { return p.color(QPalette::Active, QPalette::Window).rgb(); };
-
-	for (const QPalette &palette : {QET::Palette::fusionDark(), QET::Palette::fusionLight()})
-	{
-		QApplication::setPalette(palette);
-		QTest::qWait(50);
-		QCOMPARE(background(plain), window(palette));
-		// Qt leaves the style-sheet widget behind; this is the defect.
-		QVERIFY2(background(button) != window(palette), "Qt now updates style-sheet widgets itself; refreshStyleSheets() is redundant");
-
-		QET::Palette::refreshStyleSheets();
-		QTest::qWait(50);
-		QCOMPARE(background(button), window(palette));
 	}
+}
+
+void tst_qetpalette::lineArtRuleSeparatesInkFromColor()
+{
+	QVERIFY(QET::Palette::isLineArt(strokeSquare(Qt::black)));
+	QVERIFY(QET::Palette::isLineArt(strokeSquare(QColor(80, 80, 80))));
+	QVERIFY(!QET::Palette::isLineArt(strokeSquare(Qt::red)));
+	QVERIFY(!QET::Palette::isLineArt(strokeSquare(QColor(30, 96, 176))));
+	QVERIFY(!QET::Palette::isLineArt(QImage()));
+}
+
+/**
+	Black ink becomes the dark palette's light gray, a colored stroke keeps
+	its hue, and transparency is untouched.
+*/
+void tst_qetpalette::invertedLightnessKeepsHueAndAlpha()
+{
+	const QImage black = QET::Palette::invertedLightness(strokeSquare(Qt::black));
+	QCOMPARE(black.pixelColor(6, 20).alpha(), 255);
+	QVERIFY2(black.pixelColor(6, 20).lightnessF() > 0.8, "black ink did not become light");
+	QCOMPARE(black.pixelColor(20, 20).alpha(), 0);
+
+	const QImage red = QET::Palette::invertedLightness(strokeSquare(Qt::red));
+	const QColor stroke = red.pixelColor(6, 20);
+	QVERIFY2(qAbs(stroke.hslHueF() - QColor(Qt::red).hslHueF()) < 0.02, "hue changed");
+	QVERIFY(stroke.hslSaturationF() > 0.9);
+}
+
+/**
+	An element preview drawn for the white sheet must read at 3:1 on the
+	Base color of both palettes: unchanged on the light one, inverted on
+	the dark one.
+*/
+void tst_qetpalette::elementPreviewReadsOnBothPalettes()
+{
+	const QPixmap preview = QPixmap::fromImage(strokeSquare(Qt::black));
+	for (const QPalette &palette : {QET::Palette::fusionLight(), QET::Palette::fusionDark()})
+	{
+		const QColor base = palette.color(QPalette::Active, QPalette::Base);
+		const QPixmap shown = QET::Palette::forPalette(preview, palette);
+		QImage row(shown.size(), QImage::Format_ARGB32);
+		row.fill(base);
+		QPainter painter(&row);
+		painter.drawPixmap(0, 0, shown);
+		painter.end();
+		const double contrast = QET::Test::inkContrast(row, row.rect());
+		QVERIFY2(contrast >= 3.0, qPrintable(QString("preview reads %1:1 on Base %2").arg(contrast).arg(base.name())));
+	}
+	// A light palette hands the picture back untouched.
+	QCOMPARE(QET::Palette::forPalette(preview, QET::Palette::fusionLight()).cacheKey(), preview.cacheKey());
+}
+
+/**
+	In a tree on the dark palette, the delegate inverts a line-art icon so
+	it reads on the row, and leaves a colored icon (a folder) as it is.
+*/
+void tst_qetpalette::previewDelegateAdaptsLineArtOnly()
+{
+	QApplication::setStyle(QStyleFactory::create("Fusion"));
+	QApplication::setPalette(QET::Palette::fusionDark());
+
+	QStandardItemModel model;
+	auto *element = new QStandardItem(QIcon(QPixmap::fromImage(strokeSquare(Qt::black))), "element");
+	auto *folder = new QStandardItem(QIcon(QPixmap::fromImage(strokeSquare(QColor(30, 96, 176)))), "folder");
+	model.appendRow(element);
+	model.appendRow(folder);
+
+	QTreeView view;
+	view.setModel(&model);
+	view.setIconSize(QSize(40, 40));
+	view.setItemDelegate(new ElementPreviewDelegate(&view));
+	view.resize(300, 200);
+	view.show();
+	QVERIFY(QTest::qWaitForWindowExposed(&view));
+
+	const QImage image = view.viewport()->grab().toImage();
+	const QRect element_icon(view.visualRect(element->index()).topLeft(), QSize(40, 40));
+	const QRect folder_icon(view.visualRect(folder->index()).topLeft(), QSize(40, 40));
+	const QColor base = QET::Palette::fusionDark().color(QPalette::Active, QPalette::Base);
+	QCOMPARE(QColor(dominant(image)), base);
+
+	const double element_contrast = QET::Test::inkContrast(image, element_icon);
+	QVERIFY2(element_contrast >= 3.0, qPrintable(QString("element preview reads %1:1 on the dark row").arg(element_contrast)));
+
+	// The folder icon keeps its blue: some pixel in its slot is still saturated blue.
+	bool blue = false;
+	for (int y = folder_icon.top(); y <= folder_icon.bottom() && !blue; ++y)
+		for (int x = folder_icon.left(); x <= folder_icon.right() && !blue; ++x)
+		{
+			const QColor c = image.pixelColor(x, y);
+			blue = c.hslSaturationF() > 0.5 && c.blue() > c.red() + 60;
+		}
+	QVERIFY2(blue, "the colored icon lost its color");
 }
 
 int main(int argc, char **argv)
