@@ -29,13 +29,10 @@
 #include <QPushButton>
 #include <QPainter>
 #include <QRadioButton>
-<<<<<<< ours
 #include <QStandardItemModel>
 #include <QTreeView>
-=======
 #include <QTabWidget>
 #include <QToolButton>
->>>>>>> theirs
 #include <QStyleFactory>
 #include <QToolBar>
 
@@ -74,7 +71,6 @@ class tst_qetpalette : public QObject
 		void styleIsFusionMatchesObjectName();
 		void renderedWidgetsAreReadable_data();
 		void renderedWidgetsAreReadable();
-<<<<<<< ours
 		void lineArtRuleSeparatesInkFromColor();
 		void invertedLightnessKeepsHueAndAlpha();
 		void elementPreviewReadsOnBothPalettes();
@@ -83,9 +79,7 @@ class tst_qetpalette : public QObject
 		void invertedViewReadsOnDarkSheet();
 		void invertLightnessSpeed();
 		void sceneUpdatesReachARenderedView();
-=======
 		void styleSheetWidgetsFollowPaletteChange();
->>>>>>> theirs
 
 	private:
 		static void addPaletteRows();
@@ -332,7 +326,6 @@ void tst_qetpalette::renderedWidgetsAreReadable()
 	         qPrintable(QString("line edit text: %1").arg(edit_contrast)));
 }
 
-<<<<<<< ours
 namespace {
 	/// A 40 x 40 transparent picture with a 3 px stroke square in color, as
 	/// an element preview is drawn for the white sheet.
@@ -349,40 +342,6 @@ namespace {
 	/// The most frequent color of a rendering: its background.
 	QRgb dominant(const QImage &image)
 	{
-=======
-/**
-	A widget with a style sheet keeps the palette QStyleSheetStyle
-	resolved when the sheet was applied: after QApplication::setPalette()
-	it is still drawn in the old colors, which is what the folio tab bar
-	showed after a live light/dark switch. refreshStyleSheets() brings
-	it in line. Both directions are checked.
-*/
-void tst_qetpalette::styleSheetWidgetsFollowPaletteChange()
-{
-	QApplication::setStyle(QStyleFactory::create("Fusion"));
-	QApplication::setPalette(QET::Palette::fusionLight());
-
-	QWidget top;
-	auto *layout = new QHBoxLayout(&top);
-	auto *tabs = new QTabWidget;
-	tabs->addTab(new QWidget, "1");
-	tabs->setStyleSheet("QTabBar::scroller {width: 0px;}");   // as sources/projectview.cpp
-	auto *button = new QToolButton;
-	button->setText("+");
-	button->setAutoRaise(true);
-	tabs->setCornerWidget(button, Qt::TopRightCorner);
-	auto *plain = new QLabel("plain");
-	plain->setAutoFillBackground(true);
-	layout->addWidget(tabs);
-	layout->addWidget(plain);
-	top.resize(300, 120);
-	top.show();
-	QVERIFY(QTest::qWaitForWindowExposed(&top));
-
-	// The most frequent color of a widget's rendering: its background.
-	auto background = [](QWidget *w) {
-		const QImage image = w->grab().toImage();
->>>>>>> theirs
 		QHash<QRgb, int> histogram;
 		for (int y = 0; y < image.height(); ++y)
 			for (int x = 0; x < image.width(); ++x)
@@ -392,7 +351,6 @@ void tst_qetpalette::styleSheetWidgetsFollowPaletteChange()
 		for (auto it = histogram.cbegin(); it != histogram.cend(); ++it)
 			if (it.value() > count) { count = it.value(); best = it.key(); }
 		return best;
-<<<<<<< ours
 	}
 }
 
@@ -648,7 +606,50 @@ void tst_qetpalette::invertLightnessSpeed()
 	image.fill(Qt::white);
 	QBENCHMARK {
 		QET::Palette::invertLightness(image, QColor(30, 30, 30), QColor(220, 220, 220));
-=======
+	}
+}
+
+/**
+	A widget with a style sheet keeps the palette QStyleSheetStyle
+	resolved when the sheet was applied: after QApplication::setPalette()
+	it is still drawn in the old colors, which is what the folio tab bar
+	showed after a live light/dark switch. refreshStyleSheets() brings
+	it in line. Both directions are checked.
+*/
+void tst_qetpalette::styleSheetWidgetsFollowPaletteChange()
+{
+	QApplication::setStyle(QStyleFactory::create("Fusion"));
+	QApplication::setPalette(QET::Palette::fusionLight());
+
+	QWidget top;
+	auto *layout = new QHBoxLayout(&top);
+	auto *tabs = new QTabWidget;
+	tabs->addTab(new QWidget, "1");
+	tabs->setStyleSheet("QTabBar::scroller {width: 0px;}");   // as sources/projectview.cpp
+	auto *button = new QToolButton;
+	button->setText("+");
+	button->setAutoRaise(true);
+	tabs->setCornerWidget(button, Qt::TopRightCorner);
+	auto *plain = new QLabel("plain");
+	plain->setAutoFillBackground(true);
+	layout->addWidget(tabs);
+	layout->addWidget(plain);
+	top.resize(300, 120);
+	top.show();
+	QVERIFY(QTest::qWaitForWindowExposed(&top));
+
+	// The most frequent color of a widget's rendering: its background.
+	auto background = [](QWidget *w) {
+		const QImage image = w->grab().toImage();
+		QHash<QRgb, int> histogram;
+		for (int y = 0; y < image.height(); ++y)
+			for (int x = 0; x < image.width(); ++x)
+				++histogram[image.pixel(x, y)];
+		QRgb best = 0;
+		int count = -1;
+		for (auto it = histogram.cbegin(); it != histogram.cend(); ++it)
+			if (it.value() > count) { count = it.value(); best = it.key(); }
+		return best;
 	};
 	auto window = [](const QPalette &p) { return p.color(QPalette::Active, QPalette::Window).rgb(); };
 
@@ -663,7 +664,6 @@ void tst_qetpalette::invertLightnessSpeed()
 		QET::Palette::refreshStyleSheets();
 		QTest::qWait(50);
 		QCOMPARE(background(button), window(palette));
->>>>>>> theirs
 	}
 }
 
