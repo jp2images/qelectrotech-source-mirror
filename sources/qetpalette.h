@@ -87,6 +87,18 @@ namespace QET {
 			platform's accent color kept when it is readable.
 		*/
 		QPalette forFusion(const QPalette &platform);
+
+		/**
+			Make every widget that carries a style sheet take the current
+			application palette. QApplication::setPalette() reaches plain
+			widgets, but a widget with a style sheet keeps the palette
+			QStyleSheetStyle resolved when the sheet was applied, so after a
+			live light/dark switch it is drawn in the old colors (the folio
+			tab bar and its buttons, the element info widgets, several
+			configuration pages). Re-applying each widget's own sheet makes
+			QStyleSheetStyle resolve it again. Call after setPalette().
+		*/
+		void refreshStyleSheets();
 	}
 }
 

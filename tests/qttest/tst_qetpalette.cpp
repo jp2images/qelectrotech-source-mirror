@@ -25,6 +25,8 @@
 #include <QMainWindow>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QTabWidget>
+#include <QToolButton>
 #include <QStyleFactory>
 #include <QToolBar>
 
@@ -62,6 +64,7 @@ class tst_qetpalette : public QObject
 		void styleIsFusionMatchesObjectName();
 		void renderedWidgetsAreReadable_data();
 		void renderedWidgetsAreReadable();
+		void styleSheetWidgetsFollowPaletteChange();
 
 	private:
 		static void addPaletteRows();
@@ -306,6 +309,64 @@ void tst_qetpalette::renderedWidgetsAreReadable()
 	const double edit_contrast = inkContrast(edit_image, edit->rect().adjusted(4, 3, -4, -3));
 	QVERIFY2(edit_contrast >= kTextRatio,
 	         qPrintable(QString("line edit text: %1").arg(edit_contrast)));
+}
+
+/**
+	A widget with a style sheet keeps the palette QStyleSheetStyle
+	resolved when the sheet was applied: after QApplication::setPalette()
+	it is still drawn in the old colors, which is what the folio tab bar
+	showed after a live light/dark switch. refreshStyleSheets() brings
+	it in line. Both directions are checked.
+*/
+void tst_qetpalette::styleSheetWidgetsFollowPaletteChange()
+{
+	QApplication::setStyle(QStyleFactory::create("Fusion"));
+	QApplication::setPalette(QET::Palette::fusionLight());
+
+	QWidget top;
+	auto *layout = new QHBoxLayout(&top);
+	auto *tabs = new QTabWidget;
+	tabs->addTab(new QWidget, "1");
+	tabs->setStyleSheet("QTabBar::scroller {width: 0px;}");   // as sources/projectview.cpp
+	auto *button = new QToolButton;
+	button->setText("+");
+	button->setAutoRaise(true);
+	tabs->setCornerWidget(button, Qt::TopRightCorner);
+	auto *plain = new QLabel("plain");
+	plain->setAutoFillBackground(true);
+	layout->addWidget(tabs);
+	layout->addWidget(plain);
+	top.resize(300, 120);
+	top.show();
+	QVERIFY(QTest::qWaitForWindowExposed(&top));
+
+	// The most frequent color of a widget's rendering: its background.
+	auto background = [](QWidget *w) {
+		const QImage image = w->grab().toImage();
+		QHash<QRgb, int> histogram;
+		for (int y = 0; y < image.height(); ++y)
+			for (int x = 0; x < image.width(); ++x)
+				++histogram[image.pixel(x, y)];
+		QRgb best = 0;
+		int count = -1;
+		for (auto it = histogram.cbegin(); it != histogram.cend(); ++it)
+			if (it.value() > count) { count = it.value(); best = it.key(); }
+		return best;
+	};
+	auto window = [](const QPalette &p) { return p.color(QPalette::Active, QPalette::Window).rgb(); };
+
+	for (const QPalette &palette : {QET::Palette::fusionDark(), QET::Palette::fusionLight()})
+	{
+		QApplication::setPalette(palette);
+		QTest::qWait(50);
+		QCOMPARE(background(plain), window(palette));
+		// Qt leaves the style-sheet widget behind; this is the defect.
+		QVERIFY2(background(button) != window(palette), "Qt now updates style-sheet widgets itself; refreshStyleSheets() is redundant");
+
+		QET::Palette::refreshStyleSheets();
+		QTest::qWait(50);
+		QCOMPARE(background(button), window(palette));
+	}
 }
 
 int main(int argc, char **argv)
